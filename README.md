@@ -1,6 +1,6 @@
 # Data-Mining-Projects
 
-This repository contains three distinct Spark projects, each addressing different data analysis challenges using distributed processing. Below is an overview of each project, outlining its purpose, key functionalities, and overall workflow.
+This repository contains four distinct Spark projects, each addressing different data analysis challenges using distributed processing. Below is an overview of each project, outlining its purpose, key functionalities, and overall workflow.
 
 ---
 
@@ -75,3 +75,45 @@ This project implements MinHash and LSH techniques to identify similar businesse
     Computes Jaccard similarity for each candidate pair and retains only those exceeding a defined threshold.
   - **Output:**  
     Saves candidate pairs and the final similar pairs (with similarity scores) to output files and logs the runtime.
+
+---
+
+## Project 4: Item-Based Collaborative Filtering Recommender
+**Overview:**  
+An end-to-end item-based CF system on Yelp data. First **build** an item–item similarity model; then **predict** user ratings on held-out pairs.
+
+**Key Steps:**
+
+1. **Model Building (`build.py`)**  
+   - Load training reviews and group by `user_id` → list of `(business, rating)`.  
+   - For each user, emit all co-rated business pairs with their two ratings.  
+   - Group by `(b1, b2)`, filter pairs with fewer than _m_ common raters.  
+   - Compute Pearson correlation and record `num_common`.  
+   - Write one JSON line per pair:
+     ```json
+     { "b1": "...", "b2": "...", "sim": 0.1234, "num_common": 42 }
+     ```
+
+2. **Rating Prediction (`predict.py`)**  
+   - Rebuild in-memory maps:
+     - `user_map`: user → `[(biz, stars), …]`  
+     - `user_avg`: user mean ratings  
+     - `biz_avg`: business mean ratings  
+     - `global_avg`: overall mean rating  
+   - Load item–item model into a dict `((b1,b2) → (sim, num_common))`.  
+   - For each test `(user, item)`:
+     - Retrieve all businesses `j` rated by `user`.  
+     - Look up `(item,j)` or `(j,item)` → `(sim, cnt)`.  
+     - Compute **shrinkage**: `shrink = cnt / (cnt + 50)`, `w = sim * shrink`.  
+     - Keep only `w > 0`, sort by descending `w`, take top _n_ neighbors.  
+     - Compute the centered weighted prediction:
+       ```
+       p_{u,i} = r̄_u
+               + ( ∑_j w · (r_{u,j} − r̄_u) )
+                 / ∑_j w
+       ```
+     - Fallback to `r̄_u` if no neighbors.  
+   - Output one JSON line per prediction:
+     ```json
+     { "user_id": "USER", "business_id": "BIZ", "stars": 3.75 }
+     ```
